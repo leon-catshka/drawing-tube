@@ -14,6 +14,7 @@ app.engine("handlebars", exphbs());
 app.set('view engine', 'handlebars');
 
 let nextRoomId = 1;
+const extractVideoId = url => url ? url.split("=").slice(-1)[0] : undefined;
 
 app.get("/", (req, res) => {
     res.render("landing", {
@@ -32,7 +33,8 @@ app.get("/room/:id", (req, res) => {
 });
 
 app.post("/newRoom", (req, res) => {
-    rooms[nextRoomId] = createRoom(nextRoomId, createVideo(req.body.videoId));
+    const id = extractVideoId(req.body.videoId);
+    rooms[nextRoomId] = createRoom(nextRoomId, createVideo(id));
     res.redirect(`/room/${nextRoomId}`);
     nextRoomId++;
 })
