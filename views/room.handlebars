@@ -1,0 +1,224 @@
+<div id="console">
+    <input type="text" name="" id="videoUrl">
+    <button id="play">Play</button>
+    <button id="pause">Pause</button>
+    <button id="forwardFive">Forward 5s</button>
+    <button id="rewindFive">Rewind 5s</button>
+    <button id="forwardPointOne">Forward 0.1s</button>
+    <button id="rewindPointOne">Rewind 0.1s</button>
+</div>
+<div id="canvasConsole">
+    <button id="pen">Draw</button>
+    <button id="erase">Erase</button>
+</div>
+
+<canvas id="cnv"></canvas>
+<div id="player"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const cnv = document.querySelector("#cnv");
+    cnv.width = window.innerWidth;
+    cnv.height = window.innerHeight;
+
+    let serverDrawings = [];
+    let drawing = [];
+    let isMouseDown = false;
+    let isPen = false;
+
+    cnv.addEventListener('mousedown', e => {
+        isMouseDown = true;
+    })
+    cnv.addEventListener('mousemove', e => {
+        if (isMouseDown && isPen) {
+            const point = { x: e.clientX / cnv.width, y: e.clientY / cnv.height };
+            drawing.push(point);
+        }
+    })
+    cnv.addEventListener('mouseup', e => {
+        isMouseDown = false;
+        if (drawing.length > 0) {
+            socket.emit('drawing', drawing);
+            drawing = [];
+        }
+    })
+    const c = cnv.getContext('2d');
+
+    function draw(timestamp) {
+        c.clearRect(0, 0, cnv.width, cnv.height);
+
+        c.strokeStyle = 'red';
+        c.lineWidth = 2;
+        serverDrawings.forEach(drawing => {
+            paintDrawing(drawing, c);
+        });
+        paintDrawing(drawing, c);
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+
+    function paintDrawing(drawing, c) {
+        if (drawing.length === 0) return;
+        c.beginPath();
+        c.moveTo(drawing[0].x * cnv.width, drawing[0].y * cnv.height);
+        for (let i = 0; i < drawing.length - 1; i++) {
+            c.lineTo(drawing[i].x * cnv.width, drawing[i].y * cnv.height);
+        }
+        c.stroke();
+    }
+
+    const penElem = document.querySelector("#pen");
+    penElem.addEventListener('click', e => {
+        isPen = !isPen;
+        cnv.classList.toggle('standout')
+    })
+    const eraseElem = document.querySelector("#erase");
+    eraseElem.addEventListener('click', e => {
+        socket.emit('erase');
+    })
+</script>
+<script>
+    function skipTime(val, min = 0, max = player.getDuration()) {
+        min = min ? min : 0;
+        max = max ? max : player.getDuration();
+        const expectedTime = player.getCurrentTime() + val;
+        let timeToSet;
+        if (expectedTime < min) timeToSet = min;
+        else if (expectedTime > max) timeToSet = max;
+        else timeToSet = expectedTime
+        setTimeEvent(timeToSet);
+    }
+</script>
+<script>
+    const videoUrlElem = document.querySelector("#videoUrl");
+    videoUrlElem.addEventListener('change', e => {
+        const url = e.target.value;
+        const id = extractVideoId(url);
+        loadVideoEvent(id);
+    });
+    const pauseElem = document.querySelector("#pause");
+    pauseElem.addEventListener("click", e => {
+        const time = player.getCurrentTime();
+        pauseEvent(time);
+    });
+    const playElem = document.querySelector("#play");
+    playElem.addEventListener("click", e => {
+        playEvent();
+    });
+    const forwardFiveElem = document.querySelector("#forwardFive");
+    forwardFiveElem.addEventListener("click", e => {
+        skipTime(5);
+    });
+    const rewindFiveElem = document.querySelector("#rewindFive");
+    rewindFiveElem.addEventListener("click", e => {
+        skipTime(-5);
+    });
+    const forwardPointOneElem = document.querySelector("#forwardPointOne");
+    forwardPointOneElem.addEventListener("click", e => {
+        skipTime(0.1);
+    });
+    const rewindPointOneElem = document.querySelector("#rewindPointOne");
+    rewindPointOneElem.addEventListener("click", e => {
+        skipTime(-0.1);
+    });
+</script>
+<script>
+    const extractVideoId = url => url ? url.split("=").slice(-1)[0] : undefined;
+    const path = window.location.pathname.split('/');
+</script>
+<script>
+    var tag = document.createElement('script');
+
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    var player;
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            playerVars: {
+                modestbranding: 1,
+                disablekb: 1,
+                iv_load_policy: 3,
+            },
+            height: cnv.height,
+            width: cnv.width,
+            videoId: '{{room.video.id}}',
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange,
+                'onPlaybackRateChange': onPlayerPlaybackRateChange,
+            },
+        });
+    }
+    function onPlayerReady() {
+        socket.emit("joinRoom", path[path.length - 1]);
+    }
+    function onPlayerStateChange(data) {
+    }
+    function onPlayerPlaybackRateChange() {
+    }
+</script>
+<script>
+    function loadVideoEvent(id) {
+        //player.loadVideoById(id);
+        //player.pauseVideo();
+        socket.emit("videoId", id);
+    }
+    function pauseEvent(time) {
+        //player.pauseVideo();
+        socket.emit("videoPaused", time);
+    }
+    function playEvent() {
+        //player.playVideo();
+        socket.emit("videoPlayed");
+    }
+    function setRateEvent(rate) {//0.25,0.5,1.0,1.5,2.0
+        //player.setPlaybackRate(rate);
+        //player.pauseVideo();
+        socket.emit("videoRate", rate);
+    }
+    function setVolumeEvent(volume) {//0-100
+        player.setVolume();
+    }
+    function setTimeEvent(time) {//0-videoDuration
+        //player.seekTo(time);
+        socket.emit("videoTime", time);
+    }
+</script>
+<script>
+    const socket = io();
+    socket.on("connection", () => { });
+
+    socket.on("videoId", id => {
+        player.loadVideoById(id);
+        player.pauseVideo();
+        socket.emit("inSync");
+    });
+    socket.on("videoPaused", (time) => {
+        player.pauseVideo();
+        player.seekTo(time)
+        socket.emit("inSync");
+    });
+    socket.on("videoPlayed", () => {
+        player.playVideo();
+    });
+    socket.on("videoTime", (time) => {
+        player.seekTo(time);
+        player.pauseVideo();
+        socket.emit("inSync");
+    });
+    socket.on("videoRate", (rate) => {
+        player.setPlaybackRate(rate);
+        player.pauseVideo();
+        socket.emit("inSync");
+    });
+    //CANVAS
+    socket.on('drawing', drawing => {
+        serverDrawings.push(drawing);
+    });
+    socket.on('erase', () => {
+        serverDrawings = [];
+    });
+</script>

@@ -1,0 +1,13 @@
+<h1>DrawingTube</h1>
+<form action="/newRoom" method="POST">
+    <input type="text" name="videoId" id="videoId">
+    <input type="submit" value="Create new room!">
+</form>
+<div>
+    {{#each rooms}}
+    <p>{{id}} Viewers: {{viewers.length}} Playing: <a href="https://youtube.com/watch?v={{video.id}}"
+            target="_blank">{{video.id}}</a>
+        <a href="/room/{{id}}" class="joinLink">Join</a>
+    </p>
+    {{/each}}
+</div>
